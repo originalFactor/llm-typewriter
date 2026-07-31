@@ -36,6 +36,7 @@ JDK 17 is used on CI; JVM target for Kotlin/Android is 11.
 ```bash
 ./gradlew build                                        # build + test everything
 ./gradlew :llm-typewriter:testDebugUnitTest            # fastest feedback — pure-logic unit tests
+./gradlew :llm-typewriter:jvmTest                      # Desktop/JVM tests
 ./gradlew :llm-typewriter:connectedAndroidTest         # Compose UI instrumented tests
 ./gradlew :sample:androidApp:assembleDebug             # build Android sample
 ```
@@ -58,10 +59,10 @@ and the sample signing secrets documented in `.github/workflows/publish.yml`.
 | `StreamingTypewriterState.kt` | Phase machine + reveal buffer + headless state container. |
 | `SpeedCurve.kt` | `Linear` / `EaseOut` / `Natural` reveal cadences. |
 | `TypewriterRenderer.kt` | `TypewriterRenderer` interface + `Plain` + `Markdown` renderers, including image hook wiring. |
-| `MarkdownStreamParser.kt` | Prefix-stable streaming Markdown parser (split lines, images, links, footnotes, and `$…$` / `$$…$$` math delimiters). |
-| `TexParser.kt` | Prefix-stable lexer for TeX math fragments (`\command`, `{group}`, `^`/`_` scripts, `%comment`). Retained for prefix-stability testing and future programmatic AST use — rendering is now delegated to AndroidMath (see `MathRendering.kt`). |
+| `MarkdownStreamParser.kt` | Prefix-stable streaming Markdown parser (split lines, images, links, footnotes, and `$…$` / `$$…$$` / `\(…\)` / `\[…\]` math delimiters). |
+| `TexParser.kt` | Prefix-stable lexer for TeX math fragments (`\command`, `{group}`, `^`/`_` scripts, `%comment`). Retained for prefix-stability testing and future programmatic AST use — rendering is now delegated to RaTeX-CMP (see `MathRendering.kt`). |
 | `MathAst.kt` | Semantic AST built from `TexToken`s — fractions, sqrt, sub/sup, big operators, symbols, delimiters. Retained for testing; no longer used by the renderer. |
-| `MathRendering.kt` | `expect` declaration of `RenderPlatformMath` — renders a complete LaTeX fragment via the platform's math backend. |
+| `MathRendering.kt` | commonMain implementation of `RenderPlatformMath` — renders a complete LaTeX fragment by delegating to RaTeX-CMP (`io.ratex.compose.RaTeX` + `rememberBlockingRaTeXDisplayList`). |
 | `CodeHighlighter.kt` | Syntax highlighter wrapping [Highlights](https://github.com/SnipMeDev/Highlights) — maps its `CodeStructure` (keywords / strings / literals / comments) to `CodeSpan` ranges and fills gaps with `Plain`. Supports 17 languages (Kotlin, Java, JS/TS, Python, C/C++, Go, Rust, Swift, …). |
 | `CodeBlockFontFamily.kt` | `expect` declaration of the platform font family used by fenced markdown code blocks. |
 | `MarkdownStyles.kt` | Style record for the Markdown renderer (math color / display background / display scale). |
@@ -74,9 +75,15 @@ and the sample signing secrets documented in `.github/workflows/publish.yml`.
 
 | File | Responsibility |
 |---|---|
-| `MathRendering.android.kt` | `actual` implementation — delegates to [AndroidMath](https://github.com/gregcockroft/AndroidMath)'s `MTMathView` via `AndroidView`. Renders LaTeX with native Freetype + Latin Modern Math / Tex Gyre Termes / XITS Math fonts. |
 | `ImageLoading.android.kt` | `actual` implementation — builds the default Coil `ImageLoader` with an explicit OkHttp network fetcher for markdown images. |
 | `CodeBlockFontFamily.android.kt` | `actual` implementation — loads the embedded Cascadia Code Android font resources for fenced markdown code blocks. |
+
+`llm-typewriter/src/jvmMain/kotlin/cc/ptoe/llmtypewriter/`:
+
+| File | Responsibility |
+|---|---|
+| `ImageLoading.jvm.kt` | `actual` implementation — builds the default Coil `ImageLoader` with an OkHttp network fetcher. |
+| `CodeBlockFontFamily.jvm.kt` | `actual` implementation — uses the platform monospace font family. |
 
 Tests:
 - `src/commonTest/` — pure-logic tests (parser, highlighter, state, speed curves, TeX parser, math AST). No Compose runtime.
@@ -92,16 +99,15 @@ Tests:
 - **Headless state first.** `StreamingTypewriterState` is constructable and drivable without
   composition. New behaviour belongs in the state first; composables stay thin wrappers.
 - **No platform code in commonMain.** Speed curves, parsers, highlighter, TeX parser, math AST,
-  and state are pure Kotlin. Platform-specific code (including the AndroidMath `MTMathView`
-  binding) belongs in `androidMain`.
+  and state are pure Kotlin. Platform-specific code belongs in `androidMain` or `jvmMain`.
 - **Same-column scripts.** `x_a^b` (both scripts on one base) must fold into a single `SubSup`
-  node in `MathAst`. (Kept for AST correctness testing; visual rendering now handled by AndroidMath.)
+  node in `MathAst`. (Kept for AST correctness testing; visual rendering now handled by RaTeX.)
 - **Big-operator limits.** Scripts on a `BigOperator` (`\sum`, `\int`, …) fold into `lower`/
   `upper` fields on the operator itself in `MathAst`. (Kept for AST correctness testing; visual
-  rendering now handled by AndroidMath.)
+  rendering now handled by RaTeX.)
 - **Math renders only after the fragment is complete.** `RenderPlatformMath` is called once the
-  closing `$` / `$$` has arrived — never with a half-formed LaTeX string. Before that, the parser
-  emits the partial input as plain text.
+  closing `$` / `$$` / `\)` / `\]` has arrived — never with a half-formed LaTeX string. Before
+  that, the parser emits the partial input as plain text.
 - **Image loading stays replaceable.** Markdown image URLs are parsed in common code and the
   default `MarkdownStyles.imageRenderer` uses Coil; applications may replace it with their own
   loader or cache.
@@ -120,8 +126,9 @@ Tests:
 
 ## Tech stack (from `gradle/libs.versions.toml`)
 
-- Kotlin `2.3.21`, Compose Multiplatform `1.10.3`, AGP `9.2.0`
+- Kotlin `2.3.21`, Compose Multiplatform `1.10.3`, AGP `9.3.1`
 - `kotlinx-coroutines` `1.10.2`
 - `dev.snipme:highlights` `1.1.0` (code-block syntax analysis)
+- `io.github.darriousliu:ratex` (RaTeX-CMP, [RaTeX](https://github.com/erweixin/RaTeX) / [RaTeX-CMP](https://github.com/darriousliu/RaTeX-CMP)) — pure Rust KaTeX-compatible LaTeX engine shared by Android and JVM Desktop, with native variants `ratex-native-windows-x86-64`, `ratex-native-linux-x86-64`, `ratex-native-macos-x86-64`, `ratex-native-macos-aarch64`, `ratex-native-android`
 - Android: minSdk `24`, compileSdk/targetSdk `36`
-- Target: `androidTarget`
+- Targets: Android and Desktop JVM

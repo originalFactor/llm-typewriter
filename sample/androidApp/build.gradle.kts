@@ -69,8 +69,9 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
-    // AndroidMath (transitive via :llm-typewriter) pulls in guava-18.0 which already contains
-    // ListenableFuture, and the standalone `com.google.guava:listenablefuture:1.0` duplicates it.
+    // `androidx.activity:activity-compose` transitively pulls `androidx.concurrent:concurrent-futures`,
+    // which brings the standalone `com.google.guava:listenablefuture:1.0` stub. Exclude it so the
+    // stub does not collide with full Guava should another dependency bundle it.
     configurations.all {
         exclude(group = "com.google.guava", module = "listenablefuture")
     }

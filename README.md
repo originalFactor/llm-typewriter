@@ -2,9 +2,9 @@
 
 **The streaming-text typewriter built for LLM apps on Compose.** Renders a
 `Flow<String>` of tokens with live progressive Markdown, syntax-highlighted code
-blocks that build up as tokens arrive, inline `$…$` and display `$$…$$` LaTeX
-math, three speed curves (linear / ease-out / natural), tap-to-skip,
-graceful stop-mid-stream, selectable text, and a
+blocks that build up as tokens arrive, inline (`$…$` / `\(…\)`) and display
+(`$$…$$` / `\[…\]`) LaTeX math, three speed curves (linear / ease-out /
+natural), tap-to-skip, graceful stop-mid-stream, selectable text, and a
 screen-reader-friendly live region.
 
 [![Maven Central](https://img.shields.io/maven-central/v/cc.ptoe/llm-typewriter)](https://central.sonatype.com/artifact/cc.ptoe/llm-typewriter)
@@ -28,7 +28,7 @@ shipped:
 | `Flow<String>` source | ✅ | ❌ static string | ❌ static string | ✅ Android-only |
 | Live progressive Markdown | ✅ | ❌ | ❌ | ❌ |
 | Syntax-highlighted code blocks (live) | ✅ 17 languages (Highlights) | ❌ | ❌ | ❌ |
-| LaTeX math (`$…$` / `$$…$$`) | ✅ AndroidMath | ❌ | ❌ | ❌ |
+| LaTeX math (`$…$` / `$$…$$` / `\(…\)` / `\[…\]`) | ✅ RaTeX | ❌ | ❌ | ❌ |
 | Speed curves (linear / easeOut / natural) | ✅ | ❌ linear only | ❌ linear only | ❌ |
 | Tap-to-skip | ✅ | ❌ | ❌ | ❌ |
 | Graceful stop-mid-stream | ✅ | ❌ | ❌ | partial |
@@ -38,16 +38,16 @@ shipped:
 
 ## Install
 
-The library is on Maven Central. **One extra line is required:** math rendering
-pulls in [AndroidMath](https://github.com/gregcockroft/AndroidMath) transitively,
-which is hosted on JitPack — declare both repos in `settings.gradle.kts`:
+The library is on Maven Central. LaTeX math rendering uses
+[RaTeX-CMP](https://github.com/darriousliu/RaTeX-CMP) (pure Rust
+[RaTeX](https://github.com/erweixin/RaTeX) KaTeX-compatible engine), which is
+also on Maven Central — no extra repository is required:
 
 ```kotlin
 dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://jitpack.io") }   // required for AndroidMath
     }
 }
 ```
@@ -237,7 +237,7 @@ val hasText by state.rememberHasRevealedText()
 | Renderer | What it does |
 |---|---|
 | `PlainTypewriterRenderer` | Paints raw text in the ambient `TextStyle`. Zero parsing cost. |
-| `rememberMarkdownTypewriterRenderer(state)` | Live progressive Markdown — headings, bold, italic, strikethrough, inline code, links, fenced code blocks with **per-language syntax highlighting** via [Highlights](https://github.com/SnipMeDev/Highlights) (Kotlin, Java, JS/TS, Python, C/C++, Go, Rust, Swift, …), and inline `$…$` / display `$$…$$` LaTeX math. |
+| `rememberMarkdownTypewriterRenderer(state)` | Live progressive Markdown — headings, bold, italic, strikethrough, inline code, links, fenced code blocks with **per-language syntax highlighting** via [Highlights](https://github.com/SnipMeDev/Highlights) (Kotlin, Java, JS/TS, Python, C/C++, Go, Rust, Swift, …), and inline (`$…$` / `\(…\)`) / display (`$$…$$` / `\[…\]`) LaTeX math. |
 
 ```kotlin
 // Default styles resolve against MaterialTheme
@@ -267,8 +267,8 @@ val renderer = rememberMarkdownTypewriterRenderer(
 | ` ```kotlin … ``` ` | Fenced code block with syntax highlighting |
 | Single newline | Soft break (rendered as a space) — CommonMark |
 | Blank line (2+ newlines) | Paragraph break |
-| `$…$` | Inline LaTeX math (text style) |
-| `$$…$$` | Display LaTeX math (display style, centered, background tint, 1.2× scale) |
+| `$…$` / `\(…\)` | Inline LaTeX math (text style) |
+| `$$…$$` / `\[…\]` | Display LaTeX math (display style, centered, background tint, 1.2× scale) |
 
 ### Prefix stability
 
@@ -281,11 +281,11 @@ streaming render without visual jitter.
 
 ## LaTeX math rendering
 
-Math is delegated to [AndroidMath](https://github.com/gregcockroft/AndroidMath)'s
-`MTMathView`, which renders LaTeX with native Freetype typography (Latin Modern
-Math / Tex Gyre Termes / XITS Math fonts). This gives you proper fractions,
-stacked big-operator limits, roots with vincula, and the rest of the LaTeX
-grammar — not a hand-rolled approximation.
+Math is delegated to [RaTeX-CMP](https://github.com/darriousliu/RaTeX-CMP), which
+wraps the pure Rust [RaTeX](https://github.com/erweixin/RaTeX) KaTeX-compatible
+engine. Android and JVM Desktop share the same Rust core and KaTeX fonts, giving
+you proper fractions, stacked big-operator limits, roots with vincula, and the
+rest of the LaTeX grammar — not a hand-rolled approximation.
 
 **Inline math** — `$E = mc^2$` — renders in text style, inline with surrounding
 words, and wraps naturally at word boundaries. Each equation's width is
@@ -307,7 +307,7 @@ Before that, the parser emits the partial input as plain text — so a half-stre
 `$\frac{1}{` shows up as literal characters until the closing `$` lands. This
 guarantees the math backend never sees a half-formed LaTeX string.
 
-Only the `color` from `MarkdownStyles.math` is honored; AndroidMath owns the
+Only the `color` from `MarkdownStyles.math` is honored; RaTeX owns the
 typography (font family, style, weight). Display-math background and scale are
 configurable via `MarkdownStyles.displayMathBackground` and `displayScale`.
 
@@ -452,8 +452,9 @@ wiring.
 |---|---|
 | Android (minSdk 24) | ✅ |
 
-The library targets Android only. Math rendering depends on AndroidMath's
-`MTMathView`, which is Android-native.
+The library targets Android only. Math rendering uses
+[RaTeX-CMP](https://github.com/darriousliu/RaTeX-CMP)'s pure Rust
+KaTeX-compatible engine.
 
 ## Releasing
 
@@ -475,9 +476,10 @@ This fork **detached from the upstream GitHub fork network** because the two
 projects have diverged substantially:
 
 - **Target platform:** Android only (upstream targets Compose Multiplatform).
-- **LaTeX math:** this fork adds streaming `$…$` / `$$…$$` math rendering via
-  [AndroidMath](https://github.com/gregcockroft/AndroidMath)'s `MTMathView`,
-  plus a prefix-stable TeX lexer and semantic math AST.
+- **LaTeX math:** this fork adds streaming `$…$` / `$$…$$` / `\(…\)` / `\[…\]`
+  math rendering via [RaTeX-CMP](https://github.com/darriousliu/RaTeX-CMP)
+  (pure Rust [RaTeX](https://github.com/erweixin/RaTeX) KaTeX-compatible
+  engine), plus a prefix-stable TeX lexer and semantic math AST.
 - **Performance:** incremental Markdown re-parse, O(1) reveal tracking, and
   process-wide math-measurement caching — none of which are in upstream.
 - **Markdown layout:** CommonMark soft-break handling, inline math reflow via

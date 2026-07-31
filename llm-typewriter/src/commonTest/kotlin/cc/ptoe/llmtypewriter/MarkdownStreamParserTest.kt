@@ -418,6 +418,62 @@ class MarkdownStreamParserTest {
     }
 
     @Test
+    fun displayMath_texDelimiters_closed() {
+        val tokens = parseStreamingMarkdown("\\[\\sum_{i=1}^n i^2\\]")
+        assertEquals(
+            listOf(MdToken.DisplayMath("\\sum_{i=1}^n i^2", closed = true)),
+            tokens,
+        )
+    }
+
+    @Test
+    fun displayMath_texDelimiters_followedByText() {
+        val tokens = parseStreamingMarkdown("\\[x = 1\\]\nThen x is one.")
+        assertEquals(
+            listOf(
+                MdToken.DisplayMath("x = 1", closed = true),
+                MdToken.Newline,
+                MdToken.Plain("Then x is one."),
+            ),
+            tokens,
+        )
+    }
+
+    @Test
+    fun displayMath_texDelimiters_multipleSpans() {
+        val tokens = parseStreamingMarkdown("\\[a\\] and \\[b\\]")
+        assertEquals(
+            listOf(
+                MdToken.DisplayMath("a", closed = true),
+                MdToken.Plain(" and "),
+                MdToken.DisplayMath("b", closed = true),
+            ),
+            tokens,
+        )
+    }
+
+    @Test
+    fun prefixStability_growingTexDisplayMath() {
+        val full = "\\[x^2\\]"
+        // For every prefix shorter than the full string, no DisplayMath token should be emitted;
+        // once the closing `\]` arrives, the equation snaps into a DisplayMath token.
+        for (len in 0 until full.length) {
+            val toks = parseStreamingMarkdown(full.substring(0, len))
+            assertTrue(toks.none { it is MdToken.DisplayMath }, "len=\$len")
+        }
+        assertEquals(listOf(MdToken.DisplayMath("x^2", closed = true)), parseStreamingMarkdown(full))
+    }
+
+    @Test
+    fun unclosedTexDisplayMath_emitsPlain() {
+        val tokens = parseStreamingMarkdown("a \\[x^2")
+        assertTrue(tokens.none { it is MdToken.DisplayMath })
+        // The unclosed `\[` should degrade to plain text (mergeAdjacentPlain may fold it into a
+        // following plain run, so we check containment rather than equality).
+        assertTrue(tokens.any { it is MdToken.Plain && it.text.contains("\\[") })
+    }
+
+    @Test
     fun mathSurroundedByText_parsesCleanly() {
         val tokens = parseStreamingMarkdown("The formula \$a^2 + b^2 = c^2\$ is Pythagoras.")
         assertEquals(

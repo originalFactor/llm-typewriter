@@ -58,8 +58,8 @@ kotlin {
         }
     }
 
-    // Desktop JVM target (Compose Multiplatform). Math rendering falls back to
-    // source-as-code text there (AndroidMath is Android-only).
+    // Desktop JVM target (Compose Multiplatform). Math rendering uses RaTeX-CMP, whose JVM
+    // native runtime is selected per-host in jvmMain below.
     jvm {
         compilations.all {
             compileTaskProvider.configure {
@@ -81,31 +81,38 @@ kotlin {
             implementation(libs.coil.compose)
             api(libs.kotlinx.coroutines.core)
             implementation(libs.highlights)
+            // RaTeX-CMP provides LaTeX math rendering (pure-Rust KaTeX-compatible core) for every
+            // target from commonMain. JVM Desktop additionally pulls per-platform native runtimes
+            // from jvmMain below.
+            implementation(libs.ratex)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
 
-        // Android-only target — AndroidMath's MTMathView (native Freetype rendering) lives here.
-        // Resolved from JitPack (see settings.gradle.kts).
+        // Android target — RaTeX-CMP (declared in commonMain) ships Android native libraries
+        // (arm64-v8a / armeabi-v7a / x86_64 / x86) inside its AAR, so no per-target native
+        // runtime selection is needed here.
         getByName("androidMain") {
             dependencies {
-                // Exclude declared on the dependency itself (not via `configurations.all`) so
-                // Gradle emits `<exclusions>` in the published POM — downstream consumers won't
-                // pull in `com.google.guava:listenablefuture:1.0`, whose classes duplicate the
-                // `ListenableFuture` already shipped inside AndroidMath's transitive guava-18.0.
-                implementation("com.github.gregcockroft:AndroidMath:v1.1.0") {
-                    exclude(group = "com.google.guava", module = "listenablefuture")
-                }
                 implementation(libs.coil.network.okhttp)
             }
         }
 
-        // Desktop JVM — Coil needs a network fetcher on JVM too.
+        // Desktop JVM — Coil needs a network fetcher on JVM too. RaTeX-CMP's Rust core is
+        // distributed as separate per-platform native artifacts; declare every desktop target so
+        // the matching runtime resolves on each host. The aliases use `x8664` (not `x86-64`)
+        // because a trailing `64` segment would start with a digit and can't map to a Kotlin
+        // property accessor — the Maven coordinates still use `x86-64`.
         getByName("jvmMain") {
             dependencies {
                 implementation(libs.coil.network.okhttp)
+                runtimeOnly(libs.ratex.native.windows.x8664)
+                runtimeOnly(libs.ratex.native.linux.x8664)
+                runtimeOnly(libs.ratex.native.linux.aarch64)
+                runtimeOnly(libs.ratex.native.darwin.x8664)
+                runtimeOnly(libs.ratex.native.darwin.aarch64)
             }
         }
 

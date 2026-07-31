@@ -48,10 +48,10 @@ fun interface MarkdownImageRenderer {
  * Every field is a plain [SpanStyle] / [Color] so the caller can swap in their own design system —
  * the defaults in [LlmTypewriterDefaults.markdownStyles] resolve against the active MaterialTheme.
  *
- * Math rendering note: LaTeX fragments (`$…$` / `$$…$$`) are delegated to AndroidMath's
- * `MTMathView`, which renders with its own fonts (Latin Modern Math / Tex Gyre Termes / XITS Math)
- * via native Freetype. Of the [math] field, only [SpanStyle.color] is honored — other SpanStyle
- * properties (fontFamily, fontStyle, …) are ignored because AndroidMath owns the typography.
+ * Math rendering note: LaTeX fragments (`$…$` / `$$…$$`) are delegated to RaTeX-CMP's
+ * `RaTeX` composable, which renders with KaTeX-compatible fonts via the Rust core. Of the [math]
+ * field, only [SpanStyle.color] is honored — other SpanStyle properties (fontFamily, fontStyle, …)
+ * are ignored because RaTeX owns the typography.
  */
 @Immutable
 data class MarkdownStyles(

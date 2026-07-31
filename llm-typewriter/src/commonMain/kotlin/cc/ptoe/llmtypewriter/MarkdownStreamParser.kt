@@ -88,8 +88,8 @@ sealed class MdToken {
     data class InlineMath(val content: String, val closed: Boolean) : MdToken()
 
     /**
-     * Display math `$$...$$` — block-level, renders larger and centered with a background.
-     * [closed] flips to `true` once the closing `$$` arrives.
+     * Display math `$$...$$` or `\[...\]` — block-level, renders larger and centered with a
+     * background. [closed] flips to `true` once the closing `$$` (or `\]`) arrives.
      */
     data class DisplayMath(val content: String, val closed: Boolean) : MdToken()
 
@@ -198,6 +198,7 @@ enum class TableAlign { DEFAULT, LEFT, CENTER, RIGHT }
  *   - Horizontal split lines (`---` at line start)
  *   - GFM tables (`| a | b |` header + `| --- | --- |` separator + data rows)
  *   - Inline math (`$...$` and `\(...\)`)
+ *   - Display math (`$$...$$` and `\[...\]`)
  *
  * Open spans at the tail of the input are rendered as plain text until they close — but the
  * tokens before them are stable, so the live renderer doesn't reflow earlier text.
@@ -323,6 +324,21 @@ internal fun parseStreamingMarkdown(input: String): List<MdToken> {
             val close = input.indexOf("\\)", startIndex = i + 2)
             if (close > i + 2) {
                 out += MdToken.InlineMath(input.substring(i + 2, close), closed = true)
+                i = close + 2
+                continue
+            }
+            out += MdToken.Plain("\\")
+            i++
+            continue
+        }
+
+        // TeX-style display math `\[...\]`. An unclosed opener is emitted as plain text so the
+        // partial stream remains safe to render; once `\]` arrives, the trailing plain run
+        // re-classifies. Same prefix-stable pattern as `\(...\)` and `$$...$$`.
+        if (c == '\\' && matchesAt(input, i, "\\[")) {
+            val close = input.indexOf("\\]", startIndex = i + 2)
+            if (close > i + 2) {
+                out += MdToken.DisplayMath(input.substring(i + 2, close), closed = true)
                 i = close + 2
                 continue
             }

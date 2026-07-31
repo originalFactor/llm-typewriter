@@ -593,7 +593,7 @@ private fun RenderInlineRunWithMath(segments: List<InlineSegment>, styles: Markd
 }
 
 /**
- * Inline math — delegates to [RenderPlatformMath] (AndroidMath's MTMathView on Android) with
+ * Inline math — delegates to [RenderPlatformMath] (RaTeX-CMP on every target) with
  * `displayMode = false` so the equation renders in text style and sits inline with the
  * surrounding text. The [content] is the complete LaTeX fragment (the closing `$` has arrived);
  * before that, the parser emits the partial input as plain text, so this is never called with a
@@ -601,8 +601,8 @@ private fun RenderInlineRunWithMath(segments: List<InlineSegment>, styles: Markd
  *
  * The math view is wrapped in a [Box] whose height is forced to the text line height via
  * [Modifier.requiredHeight] (stronger than [Modifier.height] — ignores parent constraints) plus
- * [Modifier.clipToBounds] so the (taller) MTMathView cannot inflate the FlowRow row height. The
- * math view's visual overflow is clipped within the box. Center-aligned so the math sits at the
+ * [Modifier.clipToBounds] so the (taller) math composable cannot inflate the FlowRow row height.
+ * The math view's visual overflow is clipped within the box. Center-aligned so the math sits at the
  * text's visual midline (fixes "行内TeX整体偏高/偏低" — BottomStart pushed it too low, plain
  * Bottom let it sit too high).
  */

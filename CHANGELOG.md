@@ -7,13 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **RaTeX math rendering.** Android 与 JVM Desktop 的 LaTeX 渲染统一改用 [RaTeX-CMP](https://github.com/darriousliu/RaTeX-CMP)（纯 Rust [RaTeX](https://github.com/erweixin/RaTeX) KaTeX 兼容引擎）。移除 AndroidMath / KCEF / MathJax / compose-webview / Jogamp / JitPack 依赖。`MathRendering` 的 expect/actual 合并到 commonMain。
+
 - **TeX-style inline math delimiters.** Streaming Markdown now recognises `\(...\)` as an
   alternative to `$...$` for inline LaTeX, including prefix-stable handling while the closing
   delimiter is still arriving.
 
+- **TeX-style display math delimiters.** Streaming Markdown now recognises `\[...\]` as an
+  alternative to `$$...$$` for display (block-level) LaTeX, with the same prefix-stable handling
+  as the inline form — an unclosed `\[` degrades to plain text and re-classifies once `\]`
+  arrives.
+
 - **Maven dependency scopes.** Compose and Kotlin coroutines dependencies used by the public API
-  are now published with compile scope, while internal Coil, Highlights, and AndroidMath
-  dependencies remain runtime-only.
+  are now published with compile scope, while internal Coil and Highlights dependencies remain
+  runtime-only.
 
 - **Inline formatting inside headings.** `MdToken.Heading` now carries `inline: List<MdToken>`
   instead of a raw `text: String` — the heading's content is run through `parseStreamingMarkdown`
@@ -125,18 +132,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Markdown table styling.** Reworked GFM tables as rounded Material 3 surfaces with a surface
   container background, a tinted header, single interior dividers, and a visible outer outline.
   The outer shape now clips row backgrounds cleanly without cutting away the four rounded corners.
-
-- **Publishing:** moved the `listenablefuture` exclusion from a build-local
-  `configurations.all { exclude(...) }` rule onto the `AndroidMath` dependency
-  declaration itself. The previous rule only affected the library's own build
-  and was stripped from the published POM, so downstream consumers still pulled
-  in `com.google.guava:listenablefuture:1.0` transitively and hit
-  `Duplicate class com.google.common.util.concurrent.ListenableFuture` at
-  merge. Declaring the exclude on the dependency emits `<exclusions>` in the
-  POM and `excludes` in the Gradle module metadata, so the duplicate no longer
-  reaches consumers. The blanket `configurations.all` rule was removed from
-  the library module to avoid polluting the POM with redundant exclusions on
-  unrelated dependencies.
 
 ### Changed
 - **Inline code styling.** Markdown inline code now renders with rounded corners and compact
