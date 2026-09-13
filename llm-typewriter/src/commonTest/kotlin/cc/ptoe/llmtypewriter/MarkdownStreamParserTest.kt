@@ -1321,4 +1321,63 @@ class MarkdownStreamParserTest {
         assertTrue(tokens.none { it is MdToken.ThinkBlock })
         assertTrue(tokens.any { it is MdToken.Plain && it.text.contains("<think>") })
     }
+
+    // --- Whitespace-separated think block merging ---
+
+    @Test
+    fun mergeThinkBlocks_newlineSeparated() {
+        val tokens = parseStreamingMarkdown("<think>first</think>\n<think>second</think>")
+        val merged = mergeWhitespaceSeparatedThinkBlocks(tokens)
+        val block = merged.single() as MdToken.ThinkBlock
+        assertEquals("first\nsecond", block.content)
+        assertEquals(true, block.closed)
+    }
+
+    @Test
+    fun mergeThinkBlocks_blankLineSeparated() {
+        val tokens = parseStreamingMarkdown("<think>first</think>\n\n<think>second")
+        val merged = mergeWhitespaceSeparatedThinkBlocks(tokens)
+        val block = merged.single() as MdToken.ThinkBlock
+        assertEquals("first\nsecond", block.content)
+        assertEquals(false, block.closed)
+    }
+
+    @Test
+    fun mergeThinkBlocks_runsOfThree() {
+        val tokens = parseStreamingMarkdown("<think>a</think>\n\n<think>b</think>\n\n<think>c</think>")
+        val merged = mergeWhitespaceSeparatedThinkBlocks(tokens)
+        val block = merged.single() as MdToken.ThinkBlock
+        assertEquals("a\nb\nc", block.content)
+        assertEquals(true, block.closed)
+    }
+
+    @Test
+    fun mergeThinkBlocks_openBlockStaysOpen() {
+        val tokens = parseStreamingMarkdown("<think>a</think>\n\n<think>b</think>\n\n<think>c")
+        val merged = mergeWhitespaceSeparatedThinkBlocks(tokens)
+        val block = merged.single() as MdToken.ThinkBlock
+        assertEquals("a\nb\nc", block.content)
+        assertEquals(false, block.closed)
+    }
+
+    @Test
+    fun mergeThinkBlocks_keepsSeparatorsBeforeRealContent() {
+        val tokens = parseStreamingMarkdown("<think>a</think>\n\nAnswer text\n\n<think>b</think>")
+        val merged = mergeWhitespaceSeparatedThinkBlocks(tokens)
+        assertEquals(2, merged.count { it is MdToken.ThinkBlock })
+        assertTrue(merged.any { it is MdToken.Plain && it.text.contains("Answer text") })
+    }
+
+    @Test
+    fun mergeThinkBlocks_singleBlockUntouched() {
+        val tokens = parseStreamingMarkdown("<think>only</think>")
+        val merged = mergeWhitespaceSeparatedThinkBlocks(tokens)
+        assertEquals(tokens, merged)
+    }
+
+    @Test
+    fun mergeThinkBlocks_noThinkBlocksUntouched() {
+        val tokens = parseStreamingMarkdown("Hello **world**\n\nMore text")
+        assertEquals(tokens, mergeWhitespaceSeparatedThinkBlocks(tokens))
+    }
 }

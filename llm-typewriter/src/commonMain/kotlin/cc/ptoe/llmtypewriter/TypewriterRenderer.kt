@@ -193,7 +193,7 @@ internal sealed class InlineSegment {
 
 private fun planBlocks(tokens: List<MdToken>, styles: MarkdownStyles): List<MdBlock> {
     val blocks = mutableListOf<MdBlock>()
-    for (group in groupIntoParagraphs(tokens)) {
+    for (group in groupIntoParagraphs(mergeWhitespaceSeparatedThinkBlocks(tokens))) {
         // List items group together — consecutive ListItem tokens (with no intervening paragraph
         // break) form one [MdBlock.ListBlock]. Detected before the single-token branches below so
         // a lone list item doesn't fall into the inline-assembly path.
@@ -417,6 +417,55 @@ internal fun groupIntoParagraphs(tokens: List<MdToken>): List<List<MdToken>> {
     }
     flush()
     return groups
+}
+
+/**
+ * Merges [MdToken.ThinkBlock] tokens that are separated only by whitespace (Newline tokens or
+ * blank [MdToken.Plain] runs) into a single think block. Some models emit `</think>` followed by
+ * a blank line and another `<think>` mid-answer for what is visually one continuous reasoning
+ * run; without merging, the renderer would paint several back-to-back "thinking" cards. The
+ * merged block stays open until every merged part is closed, so streaming behavior (expanded
+ * while open, auto-collapse on close) is preserved. Separators followed by non-think content are
+ * left untouched.
+ *
+ * Pure and side-effect-free so it's unit-testable without the Compose runtime.
+ */
+internal fun mergeWhitespaceSeparatedThinkBlocks(tokens: List<MdToken>): List<MdToken> {
+    if (tokens.none { it is MdToken.ThinkBlock }) return tokens
+    val out = mutableListOf<MdToken>()
+    var i = 0
+    while (i < tokens.size) {
+        val tok = tokens[i]
+        if (tok !is MdToken.ThinkBlock) {
+            out += tok
+            i++
+            continue
+        }
+        var content = tok.content
+        var closed = tok.closed
+        var j = i + 1
+        while (j < tokens.size) {
+            // Scan the candidate separator run: Newline tokens and whitespace-only Plain runs.
+            var k = j
+            while (k < tokens.size) {
+                val t = tokens[k]
+                if (t is MdToken.Newline) { k++; continue }
+                if (t is MdToken.Plain && t.text.isBlank()) { k++; continue }
+                break
+            }
+            if (k > j && k < tokens.size && tokens[k] is MdToken.ThinkBlock) {
+                val next = tokens[k] as MdToken.ThinkBlock
+                content += "\n" + next.content
+                closed = closed && next.closed
+                j = k + 1
+            } else {
+                break
+            }
+        }
+        out += MdToken.ThinkBlock(content, closed)
+        i = j
+    }
+    return out
 }
 
 /**
