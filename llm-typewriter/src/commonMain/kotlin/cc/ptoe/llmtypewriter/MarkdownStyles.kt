@@ -132,5 +132,68 @@ data class MarkdownStyles(
             },
             success = { SubcomposeAsyncImageContent() },
         )
-    },
-)
+    }
+) {
+    // [imageRenderer] 是函数式接口（lambda 实例），引用相等；默认样式工厂每次
+    // 组合都会重建 lambda，导致 data class 默认的结构相等永远为 false。renderer
+    // 是行为参数而非视觉参数，因此不等价参与 equals/hashCode —— 保证同一套颜色
+    // 字体的 MarkdownStyles 在流式重组合中结构相等，从而命中 remember 记忆化缓存。
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is MarkdownStyles) return false
+        return bold == other.bold &&
+            italic == other.italic &&
+            code == other.code &&
+            link == other.link &&
+            heading == other.heading &&
+            strikethrough == other.strikethrough &&
+            codeBlockBackground == other.codeBlockBackground &&
+            codeBlockText == other.codeBlockText &&
+            codeBlockKeyword == other.codeBlockKeyword &&
+            codeBlockString == other.codeBlockString &&
+            codeBlockComment == other.codeBlockComment &&
+            codeBlockNumber == other.codeBlockNumber &&
+            math == other.math &&
+            displayMathBackground == other.displayMathBackground &&
+            displayScale == other.displayScale &&
+            tableBorder == other.tableBorder &&
+            tableHeaderBackground == other.tableHeaderBackground &&
+            tableBackground == other.tableBackground &&
+            blockQuoteStripe == other.blockQuoteStripe &&
+            blockQuoteBackground == other.blockQuoteBackground &&
+            thinkBlockStripe == other.thinkBlockStripe &&
+            thinkBlockBackground == other.thinkBlockBackground &&
+            thinkBlockText == other.thinkBlockText &&
+            footnoteReference == other.footnoteReference &&
+            footnoteDefinition == other.footnoteDefinition
+    }
+
+    override fun hashCode(): Int {
+        var result = bold.hashCode()
+        result = 31 * result + italic.hashCode()
+        result = 31 * result + code.hashCode()
+        result = 31 * result + link.hashCode()
+        result = 31 * result + heading.hashCode()
+        result = 31 * result + strikethrough.hashCode()
+        result = 31 * result + codeBlockBackground.hashCode()
+        result = 31 * result + codeBlockText.hashCode()
+        result = 31 * result + codeBlockKeyword.hashCode()
+        result = 31 * result + codeBlockString.hashCode()
+        result = 31 * result + codeBlockComment.hashCode()
+        result = 31 * result + codeBlockNumber.hashCode()
+        result = 31 * result + math.hashCode()
+        result = 31 * result + displayMathBackground.hashCode()
+        result = 31 * result + displayScale.hashCode()
+        result = 31 * result + tableBorder.hashCode()
+        result = 31 * result + tableHeaderBackground.hashCode()
+        result = 31 * result + tableBackground.hashCode()
+        result = 31 * result + blockQuoteStripe.hashCode()
+        result = 31 * result + blockQuoteBackground.hashCode()
+        result = 31 * result + thinkBlockStripe.hashCode()
+        result = 31 * result + thinkBlockBackground.hashCode()
+        result = 31 * result + thinkBlockText.hashCode()
+        result = 31 * result + footnoteReference.hashCode()
+        result = 31 * result + footnoteDefinition.hashCode()
+        return result
+    }
+}

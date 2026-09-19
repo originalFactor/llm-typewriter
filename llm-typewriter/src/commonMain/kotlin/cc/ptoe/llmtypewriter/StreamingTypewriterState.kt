@@ -57,6 +57,15 @@ class StreamingTypewriterState(
     private val buffer = StringBuilder()
 
     /**
+     * 缓存 [revealed] 的最后一次 substring。buffer 为 append-only，revealed 只随
+     * revealedLengthState 变化，因此以长度为 key 的惰性缓存完备：appendToken 不改变
+     * 已揭示长度时缓存仍有效；reset / deleteLastRevealed / skipToEnd / revealNext 改变
+     * 长度后自然失效重算。避免渲染器每帧对全文做 O(N) 截取。
+     */
+    private var revealedCacheLen: Int = -1
+    private var revealedCache: String? = null
+
+    /**
      * Number of characters revealed so far. Tracked as an Int (not a String) so each
      * [revealNext] only writes a small snapshot value — the snapshot read+compare in the
      * recomposition machinery is O(1) instead of O(N) per character. [revealed] is computed
@@ -68,7 +77,11 @@ class StreamingTypewriterState(
     val revealed: String
         get() {
             val len = revealedLengthState
-            return if (len == 0) "" else buffer.substring(0, len)
+            if (revealedCacheLen != len) {
+                revealedCacheLen = len
+                revealedCache = if (len == 0) "" else buffer.substring(0, len)
+            }
+            return revealedCache ?: ""
         }
 
     private var phaseState by mutableStateOf(TypewriterPhase.Idle)
@@ -200,6 +213,8 @@ class StreamingTypewriterState(
     fun reset() {
         buffer.clear()
         revealedLengthState = 0
+        revealedCacheLen = -1
+        revealedCache = null
         sourceCompleteState = false
         bufferSizeState = 0
         pendingCharsState = 0

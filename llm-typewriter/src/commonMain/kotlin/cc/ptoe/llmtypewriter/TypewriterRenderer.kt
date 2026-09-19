@@ -612,33 +612,39 @@ private fun RenderInlineRunWithMath(segments: List<InlineSegment>, styles: Markd
     }
 
     // Collect math segments for inline content; build the annotated string with markers.
-    val mathContents = mutableMapOf<String, InlineTextContent>()
-    val annotated = buildAnnotatedString {
-        var mathIndex = 0
-        var widthIndex = 0
-        for (segment in segments) {
-            when (segment) {
-                is InlineSegment.Text -> append(buildAnnotatedFromInline(segment.tokens, styles))
-                is InlineSegment.Math -> {
-                    val id = "math_${mathIndex++}"
-                    appendInlineContent(id, segment.content)
-                    val width = mathWidths[widthIndex]
-                    mathContents[id] = InlineTextContent(
-                        placeholder = Placeholder(
-                            width = width,
-                            height = lineHeight,
-                            placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
-                        ),
-                    ) {
-                        RenderInlineMath(segment.content, styles)
+    // 稳定前缀块（segments 结构相等，流式下不变化）复用已构建的 AnnotatedString，
+    // 仅尾部增长的块会随 token 重建 — 避免每 token 对整段重建/重测量。
+    // resolvedFontSize/lineHeight 参与 key，字体缩放变化时强制重建，占位宽度不失效。
+    val built = remember(segments, styles, resolvedFontSize, lineHeight) {
+        val contents = mutableMapOf<String, InlineTextContent>()
+        val annotated = buildAnnotatedString {
+            var mathIndex = 0
+            var widthIndex = 0
+            for (segment in segments) {
+                when (segment) {
+                    is InlineSegment.Text -> append(buildAnnotatedFromInline(segment.tokens, styles))
+                    is InlineSegment.Math -> {
+                        val id = "math_${mathIndex++}"
+                        appendInlineContent(id, segment.content)
+                        val width = mathWidths[widthIndex]
+                        contents[id] = InlineTextContent(
+                            placeholder = Placeholder(
+                                width = width,
+                                height = lineHeight,
+                                placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+                            ),
+                        ) {
+                            RenderInlineMath(segment.content, styles)
+                        }
                     }
                 }
+                widthIndex++
             }
-            widthIndex++
         }
+        annotated to contents
     }
 
-    Text(text = annotated, inlineContent = mathContents)
+    Text(text = built.first, inlineContent = built.second)
 }
 
 /**
@@ -1016,66 +1022,71 @@ private fun RenderInlineText(
     val codePaddingVertical = 1.dp
     val codeBackground = styles.code.background.takeIf { it != Color.Unspecified }
         ?: LocalContentColor.current.copy(alpha = 0.12f)
-    val inlineContent = mutableMapOf<String, InlineTextContent>()
-    val annotated = buildAnnotatedString {
-        var codeIndex = 0
-        for (token in tokens) {
-            if (token is MdToken.InlineCode) {
-                val codeTextStyle = style.copy(
-                    color = styles.code.color.takeIf { it != Color.Unspecified } ?: style.color,
-                    fontFamily = styles.code.fontFamily ?: style.fontFamily,
-                    fontWeight = styles.code.fontWeight ?: style.fontWeight,
-                    fontStyle = styles.code.fontStyle ?: style.fontStyle,
-                    fontSize = styles.code.fontSize.takeUnless { it == TextUnit.Unspecified } ?: style.fontSize,
-                )
-                val fontSize = codeTextStyle.fontSize.takeUnless { it == TextUnit.Unspecified } ?: 16.sp
-                val lineHeight = style.lineHeight.takeUnless { it == TextUnit.Unspecified } ?: fontSize * 1.2f
-                val codeChunks = maxInlineCodeWidth?.let {
-                    wrapInlineCodeText(
-                        token.text,
-                        codeTextStyle,
-                        (it - codePaddingHorizontal * 2).coerceAtLeast(0.dp),
-                        textMeasurer,
-                        density,
-                    ).split('\n')
-                } ?: listOf(token.text)
-                codeChunks.forEachIndexed { chunkIndex, displayText ->
-                    if (chunkIndex > 0) append('\n')
-                    val id = "inline_code_${codeIndex++}"
-                    appendInlineContent(id, displayText)
-                    val measuredWidth = textMeasurer.measure(
-                        text = AnnotatedString(displayText),
-                        style = codeTextStyle,
-                    ).size.width
-                    val width = with(density) {
-                        (measuredWidth.toDp() + codePaddingHorizontal * 2).toSp()
-                    }
-                    val height = with(density) {
-                        (lineHeight.toDp() + codePaddingVertical * 2).toSp()
-                    }
-                    inlineContent[id] = InlineTextContent(
-                        placeholder = Placeholder(
-                            width = width,
-                            height = height,
-                            placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
-                        ),
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(codeBackground)
-                                .padding(horizontal = codePaddingHorizontal, vertical = codePaddingVertical),
+    // 稳定前缀块（tokens 结构相等，流式下只有尾部块变化）复用已构建的
+    // AnnotatedString 与 inline content，跳过整段重建与 inline code 测量。
+    val built = remember(tokens, styles, style, maxInlineCodeWidth) {
+        val inlineContent = mutableMapOf<String, InlineTextContent>()
+        val annotated = buildAnnotatedString {
+            var codeIndex = 0
+            for (token in tokens) {
+                if (token is MdToken.InlineCode) {
+                    val codeTextStyle = style.copy(
+                        color = styles.code.color.takeIf { it != Color.Unspecified } ?: style.color,
+                        fontFamily = styles.code.fontFamily ?: style.fontFamily,
+                        fontWeight = styles.code.fontWeight ?: style.fontWeight,
+                        fontStyle = styles.code.fontStyle ?: style.fontStyle,
+                        fontSize = styles.code.fontSize.takeUnless { it == TextUnit.Unspecified } ?: style.fontSize,
+                    )
+                    val fontSize = codeTextStyle.fontSize.takeUnless { it == TextUnit.Unspecified } ?: 16.sp
+                    val lineHeight = style.lineHeight.takeUnless { it == TextUnit.Unspecified } ?: fontSize * 1.2f
+                    val codeChunks = maxInlineCodeWidth?.let {
+                        wrapInlineCodeText(
+                            token.text,
+                            codeTextStyle,
+                            (it - codePaddingHorizontal * 2).coerceAtLeast(0.dp),
+                            textMeasurer,
+                            density,
+                        ).split('\n')
+                    } ?: listOf(token.text)
+                    codeChunks.forEachIndexed { chunkIndex, displayText ->
+                        if (chunkIndex > 0) append('\n')
+                        val id = "inline_code_${codeIndex++}"
+                        appendInlineContent(id, displayText)
+                        val measuredWidth = textMeasurer.measure(
+                            text = AnnotatedString(displayText),
+                            style = codeTextStyle,
+                        ).size.width
+                        val width = with(density) {
+                            (measuredWidth.toDp() + codePaddingHorizontal * 2).toSp()
+                        }
+                        val height = with(density) {
+                            (lineHeight.toDp() + codePaddingVertical * 2).toSp()
+                        }
+                        inlineContent[id] = InlineTextContent(
+                            placeholder = Placeholder(
+                                width = width,
+                                height = height,
+                                placeholderVerticalAlign = PlaceholderVerticalAlign.TextCenter,
+                            ),
                         ) {
-                            Text(text = displayText, style = codeTextStyle)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(codeBackground)
+                                    .padding(horizontal = codePaddingHorizontal, vertical = codePaddingVertical),
+                            ) {
+                                Text(text = displayText, style = codeTextStyle)
+                            }
                         }
                     }
+                } else {
+                    append(buildAnnotatedFromInline(listOf(token), styles))
                 }
-            } else {
-                append(buildAnnotatedFromInline(listOf(token), styles))
             }
         }
+        annotated to inlineContent
     }
-    Text(text = annotated, inlineContent = inlineContent, modifier = modifier, style = style)
+    Text(text = built.first, inlineContent = built.second, modifier = modifier, style = style)
 }
 
 @Composable
@@ -1285,16 +1296,23 @@ private fun RenderCodeBlock(token: MdToken.CodeBlock, styles: MarkdownStyles) {
     val renderedContent = remember(token.content, token.closed) {
         codeBlockContentForDisplay(token.content, token.closed)
     }
-    val annotated = remember(renderedContent, lang, styles) {
-        highlightedAnnotated(
-            source = renderedContent,
-            language = lang,
-            keywordColor = styles.codeBlockKeyword,
-            stringColor = styles.codeBlockString,
-            numberColor = styles.codeBlockNumber,
-            commentColor = styles.codeBlockComment,
-            textColor = styles.codeBlockText,
-        )
+    val annotated = remember(renderedContent, lang, styles, token.closed) {
+        if (token.closed) {
+            // 围栏闭合后：一次性完整语法高亮
+            highlightedAnnotated(
+                source = renderedContent,
+                language = lang,
+                keywordColor = styles.codeBlockKeyword,
+                stringColor = styles.codeBlockString,
+                numberColor = styles.codeBlockNumber,
+                commentColor = styles.codeBlockComment,
+                textColor = styles.codeBlockText,
+            )
+        } else {
+            // 未闭合（流式进行中）：跳过 Highlights 解析，整块按代码文本色
+            // 单色渲染，避免随 token 增长对全长代码重复高亮（O(N²)）
+            AnnotatedString(renderedContent, androidx.compose.ui.text.SpanStyle(color = styles.codeBlockText))
+        }
     }
     Box(
         modifier = Modifier
