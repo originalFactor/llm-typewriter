@@ -58,8 +58,7 @@ kotlin {
         }
     }
 
-    // Desktop JVM target (Compose Multiplatform). Math rendering uses RaTeX-CMP, whose JVM
-    // native runtime is selected per-host in jvmMain below.
+    // Desktop JVM target (Compose Multiplatform).
     jvm {
         compilations.all {
             compileTaskProvider.configure {
@@ -81,39 +80,19 @@ kotlin {
             implementation(libs.coil.compose)
             api(libs.kotlinx.coroutines.core)
             implementation(libs.highlights)
-            // RaTeX-CMP provides LaTeX math rendering (pure-Rust KaTeX-compatible core) for every
-            // target from commonMain. JVM Desktop additionally pulls per-platform native runtimes
-            // from jvmMain below.
-            implementation(libs.ratex)
+            implementation(libs.latex.renderer)
+            implementation(libs.latex.fonts.katex)
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
             implementation(libs.kotlinx.coroutines.test)
         }
 
-        // Android target — RaTeX-CMP (declared in commonMain) ships Android native libraries
-        // (arm64-v8a / armeabi-v7a / x86_64 / x86) inside its AAR, so no per-target native
-        // runtime selection is needed here.
         getByName("androidMain") {
-            dependencies {
-                implementation(libs.coil.network.okhttp)
-            }
+            dependencies { implementation(libs.coil.network.okhttp) }
         }
-
-        // Desktop JVM — Coil needs a network fetcher on JVM too. RaTeX-CMP's Rust core is
-        // distributed as separate per-platform native artifacts; declare every desktop target so
-        // the matching runtime resolves on each host. The aliases use `x8664` (not `x86-64`)
-        // because a trailing `64` segment would start with a digit and can't map to a Kotlin
-        // property accessor — the Maven coordinates still use `x86-64`.
         getByName("jvmMain") {
-            dependencies {
-                implementation(libs.coil.network.okhttp)
-                runtimeOnly(libs.ratex.native.windows.x8664)
-                runtimeOnly(libs.ratex.native.linux.x8664)
-                runtimeOnly(libs.ratex.native.linux.aarch64)
-                runtimeOnly(libs.ratex.native.darwin.x8664)
-                runtimeOnly(libs.ratex.native.darwin.aarch64)
-            }
+            dependencies { implementation(libs.coil.network.okhttp) }
         }
 
         // Compose UI tests — Android instrumented tests backed by `compose.uiTest`.

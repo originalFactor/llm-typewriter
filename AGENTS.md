@@ -60,9 +60,9 @@ and the sample signing secrets documented in `.github/workflows/publish.yml`.
 | `SpeedCurve.kt` | `Linear` / `EaseOut` / `Natural` reveal cadences. |
 | `TypewriterRenderer.kt` | `TypewriterRenderer` interface + `Plain` + `Markdown` renderers, including image hook wiring. |
 | `MarkdownStreamParser.kt` | Prefix-stable streaming Markdown parser (split lines, images, links, footnotes, and `$…$` / `$$…$$` / `\(…\)` / `\[…\]` math delimiters). |
-| `TexParser.kt` | Prefix-stable lexer for TeX math fragments (`\command`, `{group}`, `^`/`_` scripts, `%comment`). Retained for prefix-stability testing and future programmatic AST use — rendering is now delegated to RaTeX-CMP (see `MathRendering.kt`). |
+| `TexParser.kt` | Prefix-stable lexer for TeX math fragments (`\command`, `{group}`, `^`/`_` scripts, `%comment`). Retained for prefix-stability testing and future programmatic AST use — rendering is delegated to Compose LaTeX (see `MathRendering.kt`). |
 | `MathAst.kt` | Semantic AST built from `TexToken`s — fractions, sqrt, sub/sup, big operators, symbols, delimiters. Retained for testing; no longer used by the renderer. |
-| `MathRendering.kt` | commonMain implementation of `RenderPlatformMath` — renders a complete LaTeX fragment by delegating to RaTeX-CMP (`io.ratex.compose.RaTeX` + `rememberBlockingRaTeXDisplayList`). |
+| `MathRendering.kt` | commonMain implementation of `RenderPlatformMath` — renders and measures a complete LaTeX fragment using Compose LaTeX. |
 | `CodeHighlighter.kt` | Syntax highlighter wrapping [Highlights](https://github.com/SnipMeDev/Highlights) — maps its `CodeStructure` (keywords / strings / literals / comments) to `CodeSpan` ranges and fills gaps with `Plain`. Supports 17 languages (Kotlin, Java, JS/TS, Python, C/C++, Go, Rust, Swift, …). |
 | `CodeBlockFontFamily.kt` | `expect` declaration of the platform font family used by fenced markdown code blocks. |
 | `MarkdownStyles.kt` | Style record for the Markdown renderer (math color / display background / display scale). |
@@ -101,10 +101,10 @@ Tests:
 - **No platform code in commonMain.** Speed curves, parsers, highlighter, TeX parser, math AST,
   and state are pure Kotlin. Platform-specific code belongs in `androidMain` or `jvmMain`.
 - **Same-column scripts.** `x_a^b` (both scripts on one base) must fold into a single `SubSup`
-  node in `MathAst`. (Kept for AST correctness testing; visual rendering now handled by RaTeX.)
+  node in `MathAst`. (Kept for AST correctness testing; visual rendering handled by Compose LaTeX.)
 - **Big-operator limits.** Scripts on a `BigOperator` (`\sum`, `\int`, …) fold into `lower`/
   `upper` fields on the operator itself in `MathAst`. (Kept for AST correctness testing; visual
-  rendering now handled by RaTeX.)
+  rendering handled by Compose LaTeX.)
 - **Math renders only after the fragment is complete.** `RenderPlatformMath` is called once the
   closing `$` / `$$` / `\)` / `\]` has arrived — never with a half-formed LaTeX string. Before
   that, the parser emits the partial input as plain text.
@@ -126,9 +126,18 @@ Tests:
 
 ## Tech stack (from `gradle/libs.versions.toml`)
 
-- Kotlin `2.3.21`, Compose Multiplatform `1.10.3`, AGP `9.3.1`
+- Kotlin `2.4.21`, Compose Multiplatform `1.12.2`, AGP `9.4.1`
 - `kotlinx-coroutines` `1.10.2`
 - `dev.snipme:highlights` `1.1.0` (code-block syntax analysis)
-- `io.github.darriousliu:ratex` (RaTeX-CMP, [RaTeX](https://github.com/erweixin/RaTeX) / [RaTeX-CMP](https://github.com/darriousliu/RaTeX-CMP)) — pure Rust KaTeX-compatible LaTeX engine shared by Android and JVM Desktop, with native variants `ratex-native-windows-x86-64`, `ratex-native-linux-x86-64`, `ratex-native-macos-x86-64`, `ratex-native-macos-aarch64`, `ratex-native-android`
+- `io.github.huarangmeng:latex-renderer` and `latex-fonts-katex` provide math rendering and fonts.
 - Android: minSdk `24`, compileSdk/targetSdk `36`
 - Targets: Android and Desktop JVM
+
+## Messenger integration
+
+- Messenger includes the module from this submodule using `llm-typewriter/messenger.gradle.kts`,
+  with its root catalog and SDK versions. Keep the standalone build working independently.
+- Preserve full inline-math height, consistent measurement/font scaling, baseline-aligned list
+  markers, localized thinking labels and replaceable image loading.
+- Verify in Messenger with `./gradlew-cli :llm-typewriter:desktopTest :llm-typewriter:compileAndroidMain`
+  and `./gradlew-cli :shared:desktopTest --tests '*ChatBubbleContentTest'`.

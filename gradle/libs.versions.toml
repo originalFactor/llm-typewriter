@@ -13,8 +13,8 @@
 # limitations under the License.
 
 [versions]
-kotlin = "2.3.21"
-composeMultiplatform = "1.10.3"
+kotlin = "2.4.21"
+composeMultiplatform = "1.12.2"
 composeMaterial3 = "1.10.0-alpha05"
 agp = "9.4.1"
 vanniktechPublish = "0.36.0"
@@ -22,7 +22,7 @@ coroutines = "1.10.2"
 androidxActivityCompose = "1.10.1"
 coil = "3.3.0"
 highlights = "1.1.0"
-ratex = "0.1.12-1"
+latex = "1.7.3"
 
 minSdk = "24"
 compileSdk = "36"
@@ -40,13 +40,9 @@ compose-material3 = { module = "org.jetbrains.compose.material3:material3", vers
 compose-ui-test = { module = "org.jetbrains.compose.ui:ui-test", version.ref = "composeMultiplatform" }
 coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 coil-network-okhttp = { module = "io.coil-kt.coil3:coil-network-okhttp", version.ref = "coil" }
+latex-renderer = { module = "io.github.huarangmeng:latex-renderer", version.ref = "latex" }
+latex-fonts-katex = { module = "io.github.huarangmeng:latex-fonts-katex", version.ref = "latex" }
 highlights = { module = "dev.snipme:highlights", version.ref = "highlights" }
-ratex = { module = "io.github.darriousliu:ratex", version.ref = "ratex" }
-ratex-native-windows-x8664 = { module = "io.github.darriousliu:ratex-native-windows-x86-64", version.ref = "ratex" }
-ratex-native-linux-x8664 = { module = "io.github.darriousliu:ratex-native-linux-x86-64", version.ref = "ratex" }
-ratex-native-linux-aarch64 = { module = "io.github.darriousliu:ratex-native-linux-aarch64", version.ref = "ratex" }
-ratex-native-darwin-x8664 = { module = "io.github.darriousliu:ratex-native-darwin-x86-64", version.ref = "ratex" }
-ratex-native-darwin-aarch64 = { module = "io.github.darriousliu:ratex-native-darwin-aarch64", version.ref = "ratex" }
 
 [plugins]
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }

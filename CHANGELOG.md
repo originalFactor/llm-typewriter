@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- Use Compose LaTeX for math rendering and retain Messenger inline layout and localization fixes.
+
 - **RaTeX math rendering.** Android 与 JVM Desktop 的 LaTeX 渲染统一改用 [RaTeX-CMP](https://github.com/darriousliu/RaTeX-CMP)（纯 Rust [RaTeX](https://github.com/erweixin/RaTeX) KaTeX 兼容引擎）。移除 AndroidMath / KCEF / MathJax / compose-webview / Jogamp / JitPack 依赖。`MathRendering` 的 expect/actual 合并到 commonMain。
 
 - **TeX-style inline math delimiters.** Streaming Markdown now recognises `\(...\)` as an
